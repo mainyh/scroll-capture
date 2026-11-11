@@ -53,7 +53,7 @@ Requirements: Windows 10 (2004+) or Windows 11, x64.
 ### Code signing policy
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
-(application in progress; releases up to v0.9.1 are unsigned).
+(application in progress; releases up to v0.9.2 are unsigned).
 Release binaries are built from this repository by GitHub Actions and every signing request is approved manually.
 See the full [code signing policy](CODE_SIGNING_POLICY.md), including team roles and the privacy policy:
 *this program will not transfer any information to other networked systems unless specifically requested by

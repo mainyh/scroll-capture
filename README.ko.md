@@ -53,7 +53,7 @@
 ### Code signing policy (코드 서명 정책)
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
-(신청 진행 중이며 v0.9.1까지의 릴리즈는 서명되지 않았습니다).
+(신청 진행 중이며 v0.9.2까지의 릴리즈는 서명되지 않았습니다).
 릴리즈 실행 파일은 이 저장소의 소스로 GitHub Actions에서 빌드되고, 모든 서명 요청은 수동으로 승인됩니다.
 팀 역할과 개인정보 처리 방침은 [코드 서명 정책](CODE_SIGNING_POLICY.md)에서 확인할 수 있습니다.
 이 프로그램은 사용자가 직접 요청하지 않는 한 어떤 정보도 다른 네트워크 시스템으로 전송하지 않습니다.
