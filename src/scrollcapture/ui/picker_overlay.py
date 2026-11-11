@@ -5,16 +5,18 @@ import os
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QScreen
 from PySide6.QtWidgets import QWidget
 
-from ..core.win32utils import Rect, WindowInfo, get_cursor_pos, top_window_at
+from ..core.win32utils import (MonitorInfo, Rect, WindowInfo, get_cursor_pos, monitors,
+                               raw_window_rect, set_window_rect, top_window_at)
 from ..i18n import tr
-from .screens import ScreenMap, screen_maps
+from .screens import match_screen
 
 HOVER_COLOR = QColor("#ff3b30")
 AREA_COLOR = QColor("#ffcc00")
-DIM = QColor(0, 0, 0, 95)
+HALO = QColor(0, 0, 0, 150)
+DIM = QColor(0, 0, 0, 110)
 DRAG_THRESHOLD = 6
 
 
@@ -26,17 +28,61 @@ class PickResult:
 
 
 class _Overlay(QWidget):
-    def __init__(self, session: "PickerSession", smap: ScreenMap):
+    """Covers exactly one monitor.
+
+    Coordinates are mapped from the overlay's *actual* native window rectangle,
+    so the highlight stays exact on mixed-DPI multi-monitor setups even if Qt
+    and Windows disagree about logical positions.
+    """
+
+    def __init__(self, session: "PickerSession", mon: MonitorInfo, screen: QScreen | None):
         super().__init__(None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
                          | Qt.WindowType.Tool)
         self.session = session
-        self.smap = smap
+        self.phys = mon.rect
+        self._native: Rect | None = None
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setGeometry(smap.screen.geometry())
+        if screen is not None:
+            # create the native window on the right monitor (right DPI) from the start
+            self.setScreen(screen)
+            self.setGeometry(screen.geometry())
+
+    # --------------------------------------------------------------- placement
+    def pin(self) -> None:
+        """Force the window to cover the monitor's physical rectangle exactly."""
+        hwnd = int(self.winId())
+        for _ in range(3):
+            if raw_window_rect(hwnd) == self.phys:
+                break
+            set_window_rect(hwnd, self.phys)
+        self._native = None
+        self.update()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self.pin()
+        # a DPI change triggered by the move may resize the window once more
+        QTimer.singleShot(80, self.pin)
+
+    def moveEvent(self, e):
+        self._native = None
+        super().moveEvent(e)
+
+    def resizeEvent(self, e):
+        self._native = None
+        super().resizeEvent(e)
+
+    def _to_local(self, r: Rect) -> QRectF:
+        if self._native is None:
+            self._native = raw_window_rect(int(self.winId()))
+        n = self._native
+        sx = n.width / max(1, self.width())
+        sy = n.height / max(1, self.height())
+        return QRectF((r.left - n.left) / sx, (r.top - n.top) / sy, r.width / sx, r.height / sy)
 
     # --------------------------------------------------------------- painting
     def paintEvent(self, _e):
@@ -51,11 +97,11 @@ class _Overlay(QWidget):
         color = HOVER_COLOR
         label = ""
         if s.drag_rect is not None:
-            hole = self.smap.rect_to_local(s.drag_rect)
+            hole = self._to_local(s.drag_rect)
             color = AREA_COLOR
             label = f"{s.drag_rect.width} × {s.drag_rect.height}"
         elif s.hover is not None:
-            hole = self.smap.rect_to_local(s.hover.rect)
+            hole = self._to_local(s.hover.rect)
             title = s.hover.title or s.hover.class_name
             exe = os.path.basename(s.hover.exe_path) if s.hover.exe_path else ""
             label = f"{title} · {exe}" if exe else title
@@ -69,15 +115,23 @@ class _Overlay(QWidget):
         p.fillPath(path, DIM)
 
         if hole is not None and hole.intersects(full):
-            pen = QPen(color, 3)
+            # light tint inside so the picked area reads clearly (and stays clickable)
+            tint = QColor(color)
+            tint.setAlpha(26)
+            p.fillRect(hole, tint)
+            edge = hole.adjusted(2, 2, -2, -2)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(HALO, 7))                  # dark halo: visible on light and dark content
+            p.drawRect(edge)
+            pen = QPen(color, 4)
             if s.drag_rect is not None:
                 pen.setStyle(Qt.PenStyle.DashLine)
             p.setPen(pen)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawRect(hole.adjusted(1.5, 1.5, -1.5, -1.5))
-            self._draw_tag(p, hole, label, color)
+            p.drawRect(edge)
+            self._draw_tag(p, hole.intersected(full), label, color)
 
-        self._draw_hint(p, full)
+        if s.cursor_monitor == self.phys:
+            self._draw_hint(p, full)
 
     def _draw_tag(self, p: QPainter, hole: QRectF, text: str, color: QColor) -> None:
         if not text:
@@ -141,6 +195,7 @@ class PickerSession(QObject):
         self.mode = mode
         self.hover: WindowInfo | None = None
         self.drag_rect: Rect | None = None
+        self.cursor_monitor: Rect | None = None
         self._press_pos: tuple[int, int] | None = None
         self._press_window: WindowInfo | None = None
         self._dragging = False
@@ -152,12 +207,13 @@ class PickerSession(QObject):
         self._done = False
 
     def start(self) -> None:
-        self._overlays = [_Overlay(self, m) for m in screen_maps()]
+        mons = monitors()
+        self._overlays = [_Overlay(self, m, match_screen(m)) for m in mons]
         for o in self._overlays:
             o.show()
         cx, cy = get_cursor_pos()
         for o in self._overlays:
-            if o.smap.phys.contains(cx, cy):
+            if o.phys.contains(cx, cy):
                 o.raise_()
                 o.activateWindow()
                 o.setFocus()
@@ -175,6 +231,10 @@ class PickerSession(QObject):
         if pos == self._last_pos and not force:
             return
         self._last_pos = pos
+        mon = next((o.phys for o in self._overlays if o.phys.contains(*pos)), None)
+        if mon != self.cursor_monitor:
+            self.cursor_monitor = mon
+            self._update()
         if self._press_pos is not None:
             dx, dy = pos[0] - self._press_pos[0], pos[1] - self._press_pos[1]
             if self._dragging or abs(dx) > DRAG_THRESHOLD or abs(dy) > DRAG_THRESHOLD:

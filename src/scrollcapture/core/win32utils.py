@@ -396,6 +396,19 @@ def activate_window(hwnd: int) -> bool:
     return bool(user32.SetForegroundWindow(wt.HWND(hwnd)))
 
 
+HWND_TOPMOST = -1
+SWP_NOACTIVATE = 0x0010
+SWP_SHOWWINDOW = 0x0040
+user32.SetWindowPos.argtypes = [wt.HWND, wt.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wt.UINT]
+
+
+def set_window_rect(hwnd: int, r: Rect, topmost: bool = True) -> bool:
+    """Place a window at an exact physical rectangle (no activation)."""
+    after = wt.HWND(HWND_TOPMOST) if topmost else wt.HWND(0)
+    return bool(user32.SetWindowPos(wt.HWND(hwnd), after, r.left, r.top, r.width, r.height,
+                                    SWP_NOACTIVATE | SWP_SHOWWINDOW))
+
+
 def set_exclude_from_capture(hwnd: int, exclude: bool = True) -> bool:
     return bool(user32.SetWindowDisplayAffinity(wt.HWND(hwnd), WDA_EXCLUDEFROMCAPTURE if exclude else WDA_NONE))
 

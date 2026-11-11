@@ -1,10 +1,35 @@
-"""Mapping between physical screen pixels (Win32) and Qt logical coordinates."""
+"""Mapping between physical screen pixels (Win32) and Qt logical coordinates.
+
+Qt keeps every screen's *top-left* in native pixels and scales only the size,
+so a monitor is matched to its QScreen by device name first and by top-left
+position second (never by list order, which can differ between the two APIs).
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, QRectF
 from PySide6.QtGui import QGuiApplication, QScreen
 
-from ..core.win32utils import Rect, monitors
+from ..core.win32utils import MonitorInfo, Rect, monitors
+
+
+def _norm(name: str) -> str:
+    return name.replace("\\", "").replace(".", "").upper()
+
+
+def match_screen(mon: MonitorInfo, screens: list[QScreen] | None = None) -> QScreen | None:
+    screens = screens if screens is not None else QGuiApplication.screens()
+    for s in screens:
+        if _norm(s.name()) == _norm(mon.device):
+            return s
+    for s in screens:
+        g = s.geometry()
+        if g.x() == mon.rect.left and g.y() == mon.rect.top:
+            return s
+    # last resort: the screen whose logical rect contains the monitor's top-left
+    for s in screens:
+        if s.geometry().contains(QPoint(mon.rect.left, mon.rect.top)):
+            return s
+    return None
 
 
 class ScreenMap:
@@ -15,7 +40,7 @@ class ScreenMap:
         self.geo = geo
         self.scale = phys.width / geo.width() if geo.width() else screen.devicePixelRatio()
 
-    # physical -> widget-local (for an overlay covering the whole screen)
+    # physical -> screen-local logical
     def to_local(self, x: float, y: float) -> QPointF:
         return QPointF((x - self.phys.left) / self.scale, (y - self.phys.top) / self.scale)
 
@@ -34,20 +59,18 @@ class ScreenMap:
 
 
 def screen_maps() -> list[ScreenMap]:
-    mons = monitors()
-    by_name = {m.device: m for m in mons}
     out = []
-    for i, s in enumerate(QGuiApplication.screens()):
-        m = by_name.get(s.name())
-        if m is None and i < len(mons):
-            m = mons[i]
-        if m is None:
+    screens = QGuiApplication.screens()
+    for m in monitors():
+        s = match_screen(m, screens)
+        if s is not None:
+            out.append(ScreenMap(s, m.rect))
+    if not out:  # should not happen; keep the app usable
+        for s in screens:
             g = s.geometry()
             r = s.devicePixelRatio()
-            m_rect = Rect(g.x(), g.y(), g.x() + round(g.width() * r), g.y() + round(g.height() * r))
-        else:
-            m_rect = m.rect
-        out.append(ScreenMap(s, m_rect))
+            out.append(ScreenMap(s, Rect(g.x(), g.y(), g.x() + round(g.width() * r),
+                                         g.y() + round(g.height() * r))))
     return out
 
 

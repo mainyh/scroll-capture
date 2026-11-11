@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-11-11
+
+### Fixed
+- Multi-monitor (especially mixed DPI): the window highlight in the picker could be drawn at
+  the wrong position/size. Each overlay is now created on its own monitor, pinned to the
+  monitor's exact physical rectangle, and maps coordinates from its actual native window rect.
+  Monitors are matched to Qt screens by device name or position instead of list order.
+
+### Changed
+- Clearer picker highlight: thicker border with a dark halo, light tint inside the selected
+  window, and the hint shown only on the monitor under the cursor.
+
 ## [0.9.0] - 2026-11-11
 
 First public beta.
@@ -21,4 +33,5 @@ First public beta.
 - Single-instance app, log file in `%APPDATA%\ScrollCapture`.
 - Portable single-file `ScrollCapture.exe` built with PyInstaller; GitHub Actions CI and release workflow.
 
+[0.9.1]: https://github.com/mainyh/scroll-capture/releases/tag/v0.9.1
 [0.9.0]: https://github.com/mainyh/scroll-capture/releases/tag/v0.9.0
