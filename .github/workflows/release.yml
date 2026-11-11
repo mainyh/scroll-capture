@@ -1,15 +1,29 @@
 name: Release
 
+# Builds ScrollCapture.exe from the tagged commit on a GitHub-hosted runner, signs it through
+# SignPath (SignPath Foundation OSS program) when configured, and publishes a GitHub release.
+#
+# Signing is enabled by these repository settings (Settings > Secrets and variables > Actions):
+#   secret   SIGNPATH_API_TOKEN            API token of a SignPath user with "submitter" permission
+#   variable SIGNPATH_ORGANIZATION_ID      SignPath organization id
+#   variable SIGNPATH_PROJECT_SLUG         e.g. scroll-capture
+#   variable SIGNPATH_SIGNING_POLICY_SLUG  e.g. release-signing
+# Without SIGNPATH_PROJECT_SLUG the release is published unsigned (as before).
+# See CODE_SIGNING_POLICY.md and .signpath/artifact-configuration.xml.
+
 on:
   push:
     tags: ["v*.*.*"]
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      SIGNING_ENABLED: ${{ vars.SIGNPATH_PROJECT_SLUG != '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -25,16 +39,55 @@ jobs:
           pip install -e .
 
       - name: Check tag matches __version__
+        id: version
         shell: pwsh
         run: |
           $v = python -c "import scrollcapture; print(scrollcapture.__version__)"
           if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} != __version__ $v" }
+          "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Test
         run: pytest -q
 
       - name: Build exe
         run: pyinstaller --noconfirm --clean scrollcapture.spec
+
+      # --- code signing (SignPath) -------------------------------------------------------
+      - name: Upload unsigned exe
+        id: upload-unsigned
+        if: env.SIGNING_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ScrollCapture-unsigned
+          path: dist/ScrollCapture.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit signing request (waits for manual approval)
+        id: sign
+        if: env.SIGNING_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Use signed exe
+        if: env.SIGNING_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item signed\ScrollCapture.exe dist\ScrollCapture.exe -Force
+          $sig = Get-AuthenticodeSignature dist\ScrollCapture.exe
+          if ($sig.Status -ne 'Valid') { throw "Signature check failed: $($sig.Status) $($sig.StatusMessage)" }
+          "Signed by: $($sig.SignerCertificate.Subject)"
+      # ------------------------------------------------------------------------------------
 
       - name: Package
         shell: pwsh
@@ -45,12 +98,21 @@ jobs:
           Copy-Item dist\ScrollCapture.exe "out\$name.exe"
           $stage = "stage\$name"
           New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item dist\ScrollCapture.exe, LICENSE, THIRD_PARTY_NOTICES.md, README.md, README.ko.md, CHANGELOG.md $stage
+          Copy-Item dist\ScrollCapture.exe, LICENSE, THIRD_PARTY_NOTICES.md, CODE_SIGNING_POLICY.md, README.md, README.ko.md, CHANGELOG.md $stage
           Compress-Archive -Path "$stage\*" -DestinationPath "out\$name.zip"
           Get-ChildItem out -File | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           } | Set-Content -Encoding ascii out\SHA256SUMS.txt
-          python tools/changelog_section.py $tag | Set-Content -Encoding utf8 notes.md
+          $notes = @(python tools/changelog_section.py $tag)
+          $notes += ""
+          $notes += "---"
+          if ($env:SIGNING_ENABLED -eq 'true') {
+            $notes += "Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)."
+          } else {
+            $notes += "This build is not code-signed yet; Windows SmartScreen may warn on first run (More info > Run anyway)."
+          }
+          $notes += "[Code signing policy](https://github.com/${{ github.repository }}/blob/main/CODE_SIGNING_POLICY.md) · Verify downloads with ``SHA256SUMS.txt``."
+          $notes | Set-Content -Encoding utf8 notes.md
           Get-Content out\SHA256SUMS.txt
 
       - name: Publish GitHub release

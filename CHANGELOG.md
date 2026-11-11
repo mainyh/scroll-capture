@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Main window hint now reads "Press Start Capture, then pick a window".
+- Release workflow can sign `ScrollCapture.exe` through SignPath (SignPath Foundation OSS program);
+  added `CODE_SIGNING_POLICY.md` and the SignPath artifact configuration.
+
 ## [0.9.1] - 2026-11-11
 
 ### Fixed

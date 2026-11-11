@@ -8,7 +8,7 @@ STRINGS: dict[str, tuple[str, str]] = {
     # main window
     "app.tagline": ("스크롤 캡쳐", "Scrolling screenshot"),
     "main.no_target": ("캡쳐할 창을 선택하세요", "Pick a window to capture"),
-    "main.no_target_sub": ("창 선택 후 캡쳐 시작을 누르세요", "Then press Start Capture"),
+    "main.no_target_sub": ("캡쳐 시작 버튼을 누른 후 창을 선택하세요", "Press Start Capture, then pick a window"),
     "main.area_auto": ("영역 {w}×{h} (자동)", "Area {w}×{h} (auto)"),
     "main.area_manual": ("영역 {w}×{h} (수동)", "Area {w}×{h} (manual)"),
     "main.pick_window": ("창 선택", "Pick Window"),

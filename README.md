@@ -12,7 +12,7 @@ Capture any scrollable Windows app — browsers, Outlook mail, Notepad, Explorer
 <a href="https://github.com/mainyh/scroll-capture/releases"><img src="https://img.shields.io/github/downloads/mainyh/scroll-capture/total" alt="Downloads"></a>
 </p>
 
-<p align="center"><a href="README.ko.md">한국어</a> · English</p>
+<p align="center"><a href="README.ko.md">한국어</a> · English · <a href="CODE_SIGNING_POLICY.md">Code signing policy</a></p>
 
 ---
 
@@ -47,6 +47,17 @@ seamlessly. Sticky headers, floating buttons and scrollbars are handled automati
 > ```
 
 Requirements: Windows 10 (2004+) or Windows 11, x64.
+
+**Uninstall:** ScrollCapture is portable. Delete `ScrollCapture.exe` and the folder `%APPDATA%\ScrollCapture`.
+
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/)
+(application in progress; releases up to v0.9.1 are unsigned).
+Release binaries are built from this repository by GitHub Actions and every signing request is approved manually.
+See the full [code signing policy](CODE_SIGNING_POLICY.md), including team roles and the privacy policy:
+*this program will not transfer any information to other networked systems unless specifically requested by
+the user or the person installing or operating it.*
 
 ## How to use
 

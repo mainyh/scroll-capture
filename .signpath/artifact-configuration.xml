@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration for ScrollCapture.
+  Paste this into the SignPath project (Artifact Configurations) - SignPath uses the copy stored there;
+  this file is kept in the repository for review and history.
+
+  The release workflow uploads dist/ScrollCapture.exe with actions/upload-artifact, so SignPath receives a
+  zip that contains a single ScrollCapture.exe. `version` is passed by the workflow (e.g. "0.9.2") and must
+  match the ProductVersion written into the exe by scrollcapture.spec.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="ScrollCapture.exe" product-name="ScrollCapture" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>
