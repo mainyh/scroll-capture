@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrollcapture"
+dynamic = ["version"]
+description = "Capture any scrollable Windows app (browser, Outlook, ...) into one long PNG/JPG."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "김용훈 (mainyh)" }]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Environment :: Win32 (MS Windows)",
+  "Topic :: Multimedia :: Graphics :: Capture :: Screen Capture",
+]
+dependencies = [
+  "PySide6-Essentials>=6.7",
+  "mss>=9",
+  "numpy>=1.26",
+  "Pillow>=10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.10"]
+
+[project.urls]
+Homepage = "https://github.com/mainyh/scroll-capture"
+Issues = "https://github.com/mainyh/scroll-capture/issues"
+
+[project.gui-scripts]
+scrollcapture = "scrollcapture.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "scrollcapture.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scrollcapture = ["resources/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

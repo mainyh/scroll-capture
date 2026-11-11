@@ -1,0 +1,7 @@
+# Pinned runtime + build dependencies used for release builds.
+PySide6-Essentials==6.10.1
+mss==10.2.0
+numpy==2.4.6
+Pillow==13.0.0
+pyinstaller==6.22.3
+pytest==9.2.0
